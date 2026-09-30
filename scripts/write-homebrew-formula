@@ -14,12 +14,11 @@ cat <<EOF_FORMULA
 class Guhd < Formula
   desc "Terminal dashboard for Google Workspace and Git repositories"
   homepage "https://github.com/cosgroveb/guhd"
-  version "$version"
   license "Apache-2.0"
 
   depends_on "git"
-  depends_on "openclaw/tap/gogcli"
   depends_on :macos
+  depends_on "openclaw/tap/gogcli"
 
   on_macos do
     on_arm do
@@ -45,7 +44,7 @@ class Guhd < Formula
     assert_path_exists man1/"guhd.1"
     assert_path_exists doc/"LICENSE"
     assert_path_exists doc/"README.md"
-    assert_predicate Formula["openclaw/tap/gogcli"].opt_bin/"gog", :executable?
+    assert_predicate formula_opt_bin("openclaw/tap/gogcli")/"gog", :executable?
   end
 end
 EOF_FORMULA
