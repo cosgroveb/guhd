@@ -22,6 +22,61 @@ The inbox loads up to 50 messages per page. The exact query **in:inbox** uses Gm
 
 Choose each project directory in setup or configuration. guhd reads each directory's latest Git commit and sorts projects by commit time. Empty repositories and inaccessible directories appear as project errors.
 
+# INSTALLATION
+
+## macOS
+
+Install with Homebrew:
+
+```sh
+brew install cosgroveb/tap/guhd
+guhd --version
+man guhd
+```
+
+The formula installs gog from **openclaw/tap/gogcli** and Git. Authorize Gmail and Calendar with gog before running setup.
+
+## Debian and Ubuntu
+
+Download **guhd_0.1.0-1_amd64.deb** or **guhd_0.1.0-1_arm64.deb** from <https://github.com/cosgroveb/guhd/releases/tag/v0.1.0>. Choose the architecture reported by **dpkg --print-architecture**. Run these commands from the download directory:
+
+```sh
+sudo apt install ./guhd_0.1.0-1_$(dpkg --print-architecture).deb
+guhd --version
+man guhd
+```
+
+The package depends on Git and timezone data and recommends xdg-utils for opening items. Install and authorize gog before running setup. Minimal systems also need **man-db** to read the installed manual.
+
+Release assets include **SHA256SUMS** for checksum verification.
+
+## Source build
+
+Install Go 1.26 or later and make. Install gog and authorize Gmail and Calendar before setup. Run these commands from the source checkout:
+
+```sh
+make build
+./guhd --version
+./guhd --setup
+```
+
+Project fetching requires Git. To install the binary under **/usr/local**, run **sudo make install**.
+
+Use **PREFIX** to choose another installation prefix and **DESTDIR** to stage an installation. The install target copies the binary. To generate the manual, install pandoc and run **make man**.
+
+## Debian package build
+
+Build packages in Debian sid with the dependencies declared in **debian/control**, plus ca-certificates and lintian:
+
+```sh
+sudo apt-get update
+sudo apt-get install -y ca-certificates git lintian
+sudo apt-get build-dep -y .
+make deb VERSION=0.1.0
+```
+
+The helper downloads Go modules, vendors them, and writes binary and source packages to **dist/**. The source package includes **guhd_0.1.0-1.dsc**, **guhd_0.1.0.orig.tar.gz**, and **guhd_0.1.0-1.debian.tar.xz**. With build dependencies installed, rebuild the extracted source without network access using **dpkg-buildpackage -us -uc**.
+
 # SETUP
 
 Put **gog** on **PATH** and authorize an account for Gmail and Calendar using gog's setup instructions. guhd uses gog's JSON commands and its **--readonly** flag. Install **git** to display projects.

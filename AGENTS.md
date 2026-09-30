@@ -8,9 +8,9 @@ Match surrounding code, then file, package, project, and Go conventions. Keep in
 
 ## Checks
 
-Run `make _fmt`, `make check`, and `go test -race ./...` for code changes. Checks require Go 1.26 or later, golangci-lint built with a compatible Go version, and pandoc.
+Run `make _fmt`, `make check`, and `go test -race ./...` for code changes. Checks require Go 1.26 or later, golangci-lint built with a compatible Go version, pandoc, and actionlint.
 
-Use fictional gog responses and temporary Git repositories in tests. Keep live Google data out of fixtures.
+Use fictional gog responses and temporary Git repositories in tests. Keep live Google data out of fixtures. Run `make deb VERSION=0.1.0` in Debian sid with the build dependencies listed in `guhd(1)` to check packaging.
 
 ## Changes
 
