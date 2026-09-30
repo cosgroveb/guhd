@@ -106,7 +106,7 @@ jobs:
           if brew command trust >/dev/null 2>&1; then
             brew trust --formula cosgroveb/tap/guhd
           fi
-          brew tap openclaw/tap
+          brew install openclaw/tap/gogcli
           brew install cosgroveb/tap/guhd
           brew test cosgroveb/tap/guhd
           brew audit --strict cosgroveb/tap/guhd

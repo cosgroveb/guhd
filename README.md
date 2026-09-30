@@ -8,7 +8,7 @@ On macOS, install with Homebrew. On Debian or Ubuntu, download the matching `.de
 
 ```sh
 # macOS
-brew tap openclaw/tap
+brew install openclaw/tap/gogcli
 brew install cosgroveb/tap/guhd
 # Debian or Ubuntu, from the download directory
 sudo apt install ./guhd_0.1.0-1_$(dpkg --print-architecture).deb

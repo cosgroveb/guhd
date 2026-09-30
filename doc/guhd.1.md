@@ -29,7 +29,7 @@ Choose each project directory in setup or configuration. guhd reads each directo
 Install with Homebrew:
 
 ```sh
-brew tap openclaw/tap
+brew install openclaw/tap/gogcli
 brew install cosgroveb/tap/guhd
 guhd --version
 man guhd
