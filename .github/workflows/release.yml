@@ -1,0 +1,171 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: version
+        run: |
+          version="$(scripts/release-version "$GITHUB_REF_NAME")"
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+      - name: Require successful CI for the tagged commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          commit="$(git rev-parse HEAD)"
+          passed="$(gh run list --workflow ci.yml --commit "$commit" --event push \
+            --json conclusion --jq 'any(.[]; .conclusion == "success")')"
+          if [ "$passed" != true ]; then
+            echo "No successful push CI run for tagged commit $commit" >&2
+            exit 1
+          fi
+
+  packages:
+    needs: version
+    uses: ./.github/workflows/packages.yml
+    with:
+      version: ${{ needs.version.outputs.version }}
+
+  publish:
+    needs: packages
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: "{deb,darwin}-*"
+          path: dist
+          merge-multiple: true
+      - name: Publish and verify release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          (cd dist && sha256sum -- * > SHA256SUMS)
+          if ! gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release create "$GITHUB_REF_NAME" --verify-tag \
+              --title "$GITHUB_REF_NAME" --generate-notes dist/*
+          fi
+          gh release download "$GITHUB_REF_NAME" --dir published
+          scripts/verify-release dist published
+
+  homebrew:
+    name: Homebrew ${{ matrix.arch }}
+    needs: [version, publish]
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: macos-15-intel
+          - arch: arm64
+            runner: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require tap token
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: test -n "$HOMEBREW_TAP_TOKEN"
+      - uses: actions/checkout@v4
+        with:
+          repository: cosgroveb/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+      - name: Generate formula from published assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          gh release download "$GITHUB_REF_NAME" --dir published
+          (cd published && shasum -a 256 --check SHA256SUMS)
+          arm64_sha="$(shasum -a 256 "published/guhd_${VERSION}_darwin_arm64.tar.gz" | awk '{print $1}')"
+          amd64_sha="$(shasum -a 256 "published/guhd_${VERSION}_darwin_amd64.tar.gz" | awk '{print $1}')"
+          scripts/write-homebrew-formula "$VERSION" "$arm64_sha" "$amd64_sha" \
+            > homebrew-tap/Formula/guhd.rb
+      - name: Commit formula for installation test
+        working-directory: homebrew-tap
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          git add Formula/guhd.rb
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git commit -m "Update guhd to $VERSION"
+      - name: Install and test through Homebrew
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          brew tap --custom-remote cosgroveb/tap "$GITHUB_WORKSPACE/homebrew-tap"
+          if brew command trust >/dev/null 2>&1; then
+            brew trust --formula cosgroveb/tap/guhd
+          fi
+          brew install cosgroveb/tap/guhd
+          brew test cosgroveb/tap/guhd
+          brew audit --strict cosgroveb/tap/guhd
+          guhd --version
+          man -w guhd
+          MANPAGER='cat' man guhd > "$RUNNER_TEMP/guhd-manual.txt"
+          test -s "$RUNNER_TEMP/guhd-manual.txt"
+      - name: Save tested formula
+        if: matrix.arch == 'arm64'
+        uses: actions/upload-artifact@v4
+        with:
+          name: homebrew-formula
+          path: homebrew-tap/Formula/guhd.rb
+          if-no-files-found: error
+
+  publish-homebrew:
+    needs: [version, homebrew]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: cosgroveb/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: homebrew-formula
+          path: Formula
+      - name: Publish tested formula
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          git add Formula/guhd.rb
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git commit -m "Update guhd to $VERSION"
+          git push origin HEAD:main

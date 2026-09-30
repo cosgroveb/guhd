@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ $# != 1 ]]; then
+  printf 'usage: %s VERSION\n' "$0" >&2
+  exit 2
+fi
+[[ "$(guhd --version)" == "guhd $1" ]]
+guhd --help > /tmp/guhd-help.txt
+grep -q -- '-config' /tmp/guhd-help.txt
+test -s /usr/share/man/man1/guhd.1.gz
+test -s /usr/share/doc/guhd/copyright
+test -s /usr/share/doc/guhd/README.md
+test -s /usr/share/doc/guhd/third-party-licenses/modules.txt
+command -v git
+test -s /usr/share/zoneinfo/America/New_York

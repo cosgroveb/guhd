@@ -8,6 +8,9 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
 jobs:
   go:
     name: Go
@@ -25,11 +28,13 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y pandoc
-          go install github.com/rhysd/actionlint/cmd/actionlint@latest
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
           go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
-
-      - name: Check workflows
-        run: actionlint
 
       - name: Check
         run: make check
+
+  packages:
+    uses: ./.github/workflows/packages.yml
+    with:
+      version: "0.1.0"

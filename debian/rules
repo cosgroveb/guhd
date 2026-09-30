@@ -1,0 +1,26 @@
+#!/usr/bin/make -f
+
+include /usr/share/dpkg/pkg-info.mk
+
+export CGO_ENABLED = 0
+export GOPROXY = off
+export GOSUMDB = off
+export GOTOOLCHAIN = local
+export DH_GOLANG_INSTALL_EXTRA = vendor
+
+%:
+	dh $@ --buildsystem=golang --builddirectory=_build --without=single-binary
+
+override_dh_auto_build:
+	$(MAKE) man
+	dh_auto_build -- -ldflags "-X main.version=$(DEB_VERSION_UPSTREAM)"
+
+override_dh_auto_install:
+	dh_auto_install -- --no-source
+
+override_dh_compress:
+	dh_compress -X.md
+
+override_dh_auto_clean:
+	dh_auto_clean
+	rm -rf build/docs

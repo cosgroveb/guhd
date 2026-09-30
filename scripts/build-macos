@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ $# != 1 ]]; then
+    printf 'usage: %s VERSION\n' "$0" >&2
+    exit 2
+fi
+root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+version=$("$root_dir/scripts/release-version" "v$1")
+[[ $(uname -s) == Darwin ]] || { printf 'build-macos requires macOS\n' >&2; exit 1; }
+case $(uname -m) in
+    arm64) arch=arm64 ;;
+    x86_64) arch=amd64 ;;
+    *) printf 'unsupported macOS architecture\n' >&2; exit 1 ;;
+esac
+stage=$(mktemp -d)
+trap 'rm -rf "$stage"' EXIT
+cd "$root_dir"
+CGO_ENABLED=0 GOOS=darwin GOARCH="$arch" go build -trimpath -ldflags "-s -w -X main.version=$version" -o "$stage/guhd" ./cmd/guhd/
+make man
+mkdir -p "$stage/man/man1" dist
+cp build/docs/man/guhd.1 "$stage/man/man1/"
+cp README.md LICENSE "$stage/"
+cp debian/copyright "$stage/copyright"
+go mod vendor -o "$stage/vendor"
+"$root_dir/scripts/collect-licenses" "$stage/vendor" "$stage/third-party-licenses"
+rm -rf "$stage/vendor"
+[[ $("$stage/guhd" --version) == "guhd $version" ]]
+"$stage/guhd" --help >/dev/null
+MANPATH="$stage/man" MANPAGER=cat man guhd >/dev/null
+COPYFILE_DISABLE=1 tar -czf "dist/guhd_${version}_darwin_${arch}.tar.gz" -C "$stage" guhd man README.md LICENSE copyright third-party-licenses

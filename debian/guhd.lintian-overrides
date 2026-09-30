@@ -1,0 +1,4 @@
+# Go produces a static executable without a shared-library ABI.
+guhd: statically-linked-binary [usr/bin/guhd]
+# Upstream publishes this package outside the Debian archive.
+guhd: initial-upload-closes-no-bugs [usr/share/doc/guhd/changelog.Debian.gz:1]

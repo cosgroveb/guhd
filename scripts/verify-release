@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ $# != 2 ]]; then
+    printf 'usage: %s LOCAL_DIR PUBLISHED_DIR\n' "$0" >&2
+    exit 2
+fi
+if command -v sha256sum >/dev/null; then
+    hash=(sha256sum)
+else
+    hash=(shasum -a 256)
+fi
+scratch=$(mktemp -d)
+trap 'rm -rf "$scratch"' EXIT
+for index in 1 2; do
+    directory=${!index}
+    [[ -d $directory && -f $directory/SHA256SUMS ]] || { printf 'missing release directory or SHA256SUMS: %s\n' "$directory" >&2; exit 1; }
+    : >"$scratch/files-$index"
+    for file in "$directory"/* "$directory"/.[!.]* "$directory"/..?*; do
+        [[ -e $file || -L $file ]] || continue
+        name=${file##*/}
+        [[ -f $file && ! -L $file && $name =~ ^[a-zA-Z0-9._-]+$ ]] || { printf 'invalid release asset: %s\n' "$file" >&2; exit 1; }
+        [[ $name == SHA256SUMS ]] || printf '%s\n' "$name" >>"$scratch/files-$index"
+    done
+    LC_ALL=C sort -o "$scratch/files-$index" "$scratch/files-$index"
+    : >"$scratch/manifest-$index"
+    while IFS= read -r line || [[ -n $line ]]; do
+        [[ $line =~ ^([0-9a-f]{64})[[:space:]][\ *]([a-zA-Z0-9._-]+)$ ]] || { printf 'invalid checksum line\n' >&2; exit 1; }
+        checksum=${BASH_REMATCH[1]}
+        name=${BASH_REMATCH[2]}
+        [[ $name != SHA256SUMS && -f $directory/$name && ! -L $directory/$name ]] || { printf 'invalid checksum asset: %s\n' "$name" >&2; exit 1; }
+        actual=$("${hash[@]}" "$directory/$name")
+        [[ ${actual%% *} == "$checksum" ]] || { printf 'checksum mismatch: %s\n' "$name" >&2; exit 1; }
+        printf '%s\n' "$name" >>"$scratch/manifest-$index"
+    done <"$directory/SHA256SUMS"
+    LC_ALL=C sort -o "$scratch/manifest-$index" "$scratch/manifest-$index"
+    [[ -s $scratch/manifest-$index ]] || { printf 'empty release manifest\n' >&2; exit 1; }
+    cmp "$scratch/files-$index" "$scratch/manifest-$index"
+done
+cmp "$scratch/files-1" "$scratch/files-2"
+cmp "$1/SHA256SUMS" "$2/SHA256SUMS"
+while IFS= read -r name; do
+    cmp "$1/$name" "$2/$name"
+done <"$scratch/files-1"

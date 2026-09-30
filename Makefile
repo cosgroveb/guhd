@@ -7,7 +7,7 @@ DOC_MAN_OUTPUTS := $(DOC_MAN_DIR)/guhd.1
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
 .DEFAULT_GOAL := build
-.PHONY: build clean install run check test man help _fmt _fmt-check _vet _lint _check-docs _workflow-make-targets _require-pandoc _hooks
+.PHONY: build deb clean install run check test man help _fmt _fmt-check _vet _lint _check-docs _workflow-make-targets _release-check _require-pandoc _hooks
 
 build: ## Build binary
 	go build -trimpath -ldflags '$(LDFLAGS)' -o $(BINARY) ./cmd/guhd/
@@ -23,7 +23,14 @@ install: build ## Install binary under PREFIX
 run: ## Run binary
 	go run ./cmd/guhd/
 
-check: _fmt-check _vet _lint _workflow-make-targets _check-docs test build
+check: _fmt-check _vet _lint _workflow-make-targets _release-check _check-docs test build
+
+deb: ## Build Debian binary and source packages in dist
+	INCLUDE_SOURCE=1 scripts/build-deb "$(VERSION)"
+
+_release-check:
+	actionlint
+	scripts/test-release-helpers
 
 test: ## Run tests
 	go test ./...

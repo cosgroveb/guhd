@@ -1,0 +1,132 @@
+name: Packages
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  debian:
+    name: Debian ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    container: debian:sid
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - name: Install package tools
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates git \
+            lintian
+      - uses: actions/checkout@v4
+      - name: Build and inspect package
+        env:
+          VERSION: ${{ inputs.version }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          apt-get build-dep -y --no-install-recommends .
+          test "$(dpkg --print-architecture)" = "$ARCH"
+          scripts/build-deb "$VERSION"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deb-${{ matrix.arch }}
+          path: dist/*
+          if-no-files-found: error
+
+  install-debian:
+    name: Install ${{ matrix.suite }} ${{ matrix.arch }}
+    needs: debian
+    runs-on: ${{ matrix.runner }}
+    container: ${{ matrix.suite }}
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [debian:trixie, ubuntu:noble]
+        arch: [amd64, arm64]
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: deb-${{ matrix.arch }}
+          path: dist
+      - name: Install, run, and remove package
+        env:
+          VERSION: ${{ inputs.version }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          printf 'path-include=/usr/share/man/*\npath-include=/usr/share/doc/guhd/*\n' \
+            > /etc/dpkg/dpkg.cfg.d/zz-guhd-docs
+          apt-get update
+          apt-get install -y man-db "./dist/guhd_${VERSION}-1_${ARCH}.deb"
+          if [ "$(dpkg-divert --truename /usr/bin/man)" = /usr/bin/man.REAL ]; then
+            rm /usr/bin/man
+            dpkg-divert --quiet --remove --rename /usr/bin/man
+          fi
+          test "$(dpkg-query -W -f='${Version}' guhd)" = "$VERSION-1"
+          scripts/test-installed "$VERSION"
+          test "$(man -w guhd)" = /usr/share/man/man1/guhd.1.gz
+          MANPAGER='cat' man guhd > /tmp/guhd-manual.txt
+          test -s /tmp/guhd-manual.txt
+          apt-get remove -y guhd
+          test ! -e /usr/bin/guhd
+          test ! -e /usr/share/man/man1/guhd.1.gz
+
+  macos:
+    name: Darwin ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: macos-15-intel
+          - arch: arm64
+            runner: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Install documentation tools
+        run: brew install pandoc
+      - name: Build and run archive
+        env:
+          VERSION: ${{ inputs.version }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          test "$(go env GOARCH)" = "$ARCH"
+          scripts/build-macos "$VERSION"
+          mkdir "$RUNNER_TEMP/archive"
+          tar -xzf "dist/guhd_${VERSION}_darwin_${ARCH}.tar.gz" -C "$RUNNER_TEMP/archive"
+          archive="$RUNNER_TEMP/archive"
+          test "$("$archive/guhd" --version)" = "guhd $VERSION"
+          "$archive/guhd" --help
+          cmp LICENSE "$archive/LICENSE"
+          MANPATH="$archive/man" MANPAGER='cat' man guhd > "$RUNNER_TEMP/guhd-manual.txt"
+          test -s "$RUNNER_TEMP/guhd-manual.txt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: darwin-${{ matrix.arch }}
+          path: dist/*.tar.gz
+          if-no-files-found: error

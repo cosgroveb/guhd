@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ $# != 0 ]]; then
+    printf 'usage: %s\n' "$0" >&2
+    exit 2
+fi
+root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+scripts="$root_dir/scripts"
+scratch=$(mktemp -d)
+trap 'rm -rf "$scratch"' EXIT
+expect_failure() {
+    if "$@" >"$scratch/stdout" 2>"$scratch/stderr"; then
+        printf 'expected failure: %s\n' "$*" >&2
+        exit 1
+    fi
+}
+[[ $("$scripts/release-version" v0.1.0) == 0.1.0 ]]
+[[ $("$scripts/release-version" v12.34.56) == 12.34.56 ]]
+expect_failure "$scripts/release-version"
+expect_failure "$scripts/release-version" v1.2.3 extra
+for tag in '' 1.2.3 v1.2 v01.2.3 v1.02.3 v1.2.03 v1.2.3-rc1 v1.2.3+build 'v1.2.3;true'; do
+    expect_failure "$scripts/release-version" "$tag"
+done
+arm=$(printf '%064d' 1)
+amd=$(printf '%064d' 2)
+"$scripts/write-homebrew-formula" 1.2.3 "$arm" "$amd" >"$scratch/guhd.rb"
+grep -Fq "guhd_1.2.3_darwin_arm64.tar.gz" "$scratch/guhd.rb"
+grep -Fq "guhd_1.2.3_darwin_amd64.tar.gz" "$scratch/guhd.rb"
+grep -Fq "sha256 \"$arm\"" "$scratch/guhd.rb"
+grep -Fq "sha256 \"$amd\"" "$scratch/guhd.rb"
+grep -Fq 'depends_on "openclaw/tap/gogcli"' "$scratch/guhd.rb"
+expect_failure "$scripts/write-homebrew-formula" 1.2.3 bad "$amd"
+expect_failure "$scripts/write-homebrew-formula" 1.2.3 "$arm" bad
+expect_failure "$scripts/write-homebrew-formula" '1.2.3"' "$arm" "$amd"
+expect_failure "$scripts/build-macos"
+expect_failure "$scripts/build-macos" invalid
+if [[ $(uname -s) != Darwin ]]; then
+    expect_failure "$scripts/build-macos" 1.2.3
+fi
+if command -v sha256sum >/dev/null; then
+    hash=(sha256sum)
+else
+    hash=(shasum -a 256)
+fi
+# Exercise the release workflow's checksum command with representative assets.
+if command -v sha256sum >/dev/null; then
+    mkdir -p "$scratch/workflow/dist" "$scratch/workflow/published"
+    printf 'macOS archive\n' >"$scratch/workflow/dist/guhd_1.2.3_darwin_arm64.tar.gz"
+    printf 'Debian package\n' >"$scratch/workflow/dist/guhd_1.2.3-1_amd64.deb"
+    (
+        cd "$scratch/workflow"
+        (cd dist && sha256sum -- * > SHA256SUMS)
+    )
+    cp "$scratch/workflow/dist/"* "$scratch/workflow/published/"
+    "$scripts/verify-release" "$scratch/workflow/dist" "$scratch/workflow/published"
+fi
+mkdir "$scratch/local" "$scratch/published"
+printf 'release bytes\n' >"$scratch/local/asset.tar.gz"
+(cd "$scratch/local" && "${hash[@]}" asset.tar.gz >SHA256SUMS)
+reset_published() {
+    rm -rf "$scratch/published"
+    mkdir "$scratch/published"
+    cp "$scratch/local/"* "$scratch/published/"
+}
+reset_published
+"$scripts/verify-release" "$scratch/local" "$scratch/published"
+printf 'changed\n' >>"$scratch/published/asset.tar.gz"
+expect_failure "$scripts/verify-release" "$scratch/local" "$scratch/published"
+(cd "$scratch/published" && "${hash[@]}" asset.tar.gz >SHA256SUMS)
+expect_failure "$scripts/verify-release" "$scratch/local" "$scratch/published"
+reset_published
+printf 'extra\n' >"$scratch/published/extra"
+expect_failure "$scripts/verify-release" "$scratch/local" "$scratch/published"
+reset_published
+rm "$scratch/published/asset.tar.gz"
+expect_failure "$scripts/verify-release" "$scratch/local" "$scratch/published"
+reset_published
+cat "$scratch/local/SHA256SUMS" >>"$scratch/published/SHA256SUMS"
+expect_failure "$scripts/verify-release" "$scratch/local" "$scratch/published"
+reset_published
+mkdir "$scratch/published/subdirectory"
+expect_failure "$scripts/verify-release" "$scratch/local" "$scratch/published"
+reset_published
+ln -s asset.tar.gz "$scratch/published/link"
+expect_failure "$scripts/verify-release" "$scratch/local" "$scratch/published"
+reset_published
+printf '%s  ../asset.tar.gz\n' "$arm" >"$scratch/published/SHA256SUMS"
+expect_failure "$scripts/verify-release" "$scratch/local" "$scratch/published"
+reset_published
+printf 'hidden\n' >"$scratch/published/.hidden"
+expect_failure "$scripts/verify-release" "$scratch/local" "$scratch/published"
+rm -rf "$scratch/published"
+mkdir "$scratch/published"
+: >"$scratch/published/SHA256SUMS"
+expect_failure "$scripts/verify-release" "$scratch/published" "$scratch/published"
+printf 'release helper tests passed\n'

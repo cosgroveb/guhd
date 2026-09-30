@@ -1,0 +1,31 @@
+Source: guhd
+Standards-Version: 4.7.4
+Maintainer: Brian Cosgrove <cosgroveb@gmail.com>
+Section: utils
+Build-Depends:
+ debhelper-compat (= 14),
+ dh-sequence-golang,
+ git,
+ golang-any (>= 2:1.26~),
+ pandoc,
+ tzdata,
+Vcs-Browser: https://github.com/cosgroveb/guhd
+Vcs-Git: https://github.com/cosgroveb/guhd.git
+Homepage: https://github.com/cosgroveb/guhd
+Rules-Requires-Root: no
+XS-Go-Import-Path: github.com/cosgroveb/guhd
+
+Package: guhd
+Architecture: any
+Depends:
+ git,
+ tzdata,
+Recommends:
+ xdg-utils,
+Built-Using:
+ ${misc:Built-Using},
+Description: terminal dashboard for Google Workspace and Git projects
+ View Google Calendar events, Gmail messages, and local Git projects
+ in a terminal dashboard. Google Workspace access requires the separately
+ installed and authenticated gog command from gogcli.
+Static-Built-Using: ${misc:Static-Built-Using}

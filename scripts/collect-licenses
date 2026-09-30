@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ $# -ne 2 ]]; then
+    echo "usage: $0 VENDOR OUTPUT" >&2
+    exit 2
+fi
+
+vendor=${1%/}
+output=$2
+if [[ ! -f "$vendor/modules.txt" ]]; then
+    echo "missing vendor manifest: $vendor/modules.txt" >&2
+    exit 1
+fi
+if [[ -e "$output" ]] && [[ ! -d "$output" || -n "$(find "$output" -mindepth 1 -print -quit)" ]]; then
+    echo "license output must be absent or empty: $output" >&2
+    exit 1
+fi
+
+# Only modules with vendored packages need notices (explicit unused modules
+# can appear in modules.txt without any files in vendor).
+while IFS= read -r module; do
+    if ! find "$vendor/$module" -maxdepth 1 -type f \
+        \( -iname 'LICENSE*' -o -iname 'LICENCE*' -o -iname 'COPYING*' \) \
+        -print -quit | grep -q .; then
+        echo "missing license for vendored module: $module" >&2
+        exit 1
+    fi
+done < <(awk '/^# / { module=$2; next } /^[^#[:space:]]/ { if (!seen[module]++) print module }' "$vendor/modules.txt")
+
+mkdir -p "$output"
+cp "$vendor/modules.txt" "$output/modules.txt"
+while IFS= read -r -d '' file; do
+    relative=${file#"$vendor"/}
+    mkdir -p "$output/$(dirname "$relative")"
+    cp "$file" "$output/$relative"
+done < <(find "$vendor" -type f \
+    \( -iname 'LICENSE*' -o -iname 'LICENCE*' -o -iname 'COPYING*' \
+       -o -iname 'COPYRIGHT*' -o -iname 'NOTICE*' -o -iname 'AUTHORS*' \
+       -o -iname 'PATENTS*' \) -print0)
