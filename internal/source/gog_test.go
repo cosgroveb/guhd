@@ -40,6 +40,22 @@ func TestMain(m *testing.M) {
 				panic(err)
 			}
 		}
+		if os.Getenv("GUHD_HELPER_ATTACHMENT") == "1" {
+			for i, arg := range os.Args {
+				if arg != "--out" || i+1 >= len(os.Args) {
+					continue
+				}
+				path := os.Args[i+1]
+				info, err := os.Stat(filepath.Dir(path))
+				if err != nil || info.Mode().Perm() != 0700 {
+					fmt.Fprint(os.Stderr, "attachment directory is not private")
+					os.Exit(3)
+				}
+				if err := os.WriteFile(path, []byte("fictional downloaded bytes"), 0600); err != nil {
+					panic(err)
+				}
+			}
+		}
 		switch os.Getenv("GUHD_HELPER_MODE") {
 		case "fail":
 			fmt.Fprint(os.Stderr, "fictional auth failure")
@@ -53,6 +69,13 @@ func TestMain(m *testing.M) {
 			os.Exit(0)
 		}
 		data := os.Getenv("GUHD_HELPER_JSON")
+		if path := os.Getenv("GUHD_HELPER_JSON_FILE"); path != "" {
+			content, err := os.ReadFile(path)
+			if err != nil {
+				panic(err)
+			}
+			data = string(content)
+		}
 		if len(os.Args) > 2 && strings.Contains(strings.Join(os.Args, " "), "calendar calendars") && os.Getenv("GUHD_HELPER_CALENDARS") != "" {
 			data = os.Getenv("GUHD_HELPER_CALENDARS")
 		}

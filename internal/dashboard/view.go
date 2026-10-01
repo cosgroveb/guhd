@@ -46,13 +46,17 @@ func (m *model) View() tea.View {
 	case m.setup != nil:
 		text = m.setup.View(width, height)
 	case m.help:
-		text = m.styles.Heading.Render("guhd help") + "\n\n" + m.styles.Normal.Render("↑/↓ j/k  select or scroll\nTab      next section\nEnter    details\nEsc      back\nr        refresh\no        open original\ny        request link/path copy\nn        next inbox page\nq Ctrl-C quit\n?        close help")
+		text = m.styles.Heading.Render("guhd help") + "\n\n" + m.styles.Normal.Render("↑/↓ j/k  select or scroll\nTab      next section\nEnter    details\nEsc      back\nr        refresh\no        open original\ny        request link/path copy\nn        next inbox page\ni        next mail image\nq Ctrl-C quit\n?        close help")
 		if m.preview {
 			text += "\n" + m.styles.Muted.Render("s        preview setup (no saves)")
 		}
 	case m.detail != nil:
 		d := m.detail
-		text = m.styles.Heading.Render(oneLine(d.title)) + "\n" + d.viewport.View() + "\n" + m.styles.Muted.Render(oneLine(m.status)) + "\n" + m.styles.Footer.Render("Esc back · o open · y copy · ? help")
+		hint := ""
+		if m.hasImages() && m.cfg.Images != "off" {
+			hint = " · i image"
+		}
+		text = m.styles.Heading.Render(oneLine(d.title)) + "\n" + d.viewport.View() + "\n" + m.styles.Muted.Render(oneLine(m.status)) + "\n" + m.styles.Footer.Render("Esc back · o open · y copy · ? help"+hint)
 	default:
 		text = m.overview()
 	}

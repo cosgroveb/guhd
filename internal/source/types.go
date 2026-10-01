@@ -24,9 +24,15 @@ type MailPage struct {
 }
 type MailCounts struct{ Total, Unread int }
 type MessageDetail struct {
-	Message  Message
-	To, Body string
+	Message     Message
+	To, Body    string
+	Attachments []Attachment
 }
+type Attachment struct {
+	ID, Name, MIMEType, Unavailable string
+	Size                            int
+}
+
 type Project struct {
 	Name, Path, Subject, Body, Revision string
 	Time                                time.Time

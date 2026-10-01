@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/cosgroveb/guhd/internal/config"
 	"github.com/cosgroveb/guhd/internal/source"
+	"github.com/cosgroveb/guhd/internal/theme"
 )
 
 type setupSource struct {
@@ -39,7 +40,7 @@ func TestSetupSave(t *testing.T) {
 		accounts:  []source.Account{{Email: "alex@example.com", Client: "work"}},
 		calendars: []source.Calendar{{ID: "opaque-ID", Name: "Work"}, {ID: "other-ID", Name: "Other"}},
 	}
-	m := newSetup(context.Background(), config.Defaults(), path, client)
+	m := newSetup(context.Background(), config.Defaults(), path, client, theme.Styles{})
 	m, _ = m.Update(m.Init()())
 	m, cmd := m.Update(setupKey(tea.KeyEnter))
 	if !m.loading || cmd == nil {
@@ -92,7 +93,7 @@ func TestSetupCancelPreservesConfig(t *testing.T) {
 	if err := os.WriteFile(path, original, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	m := newSetup(context.Background(), config.Defaults(), path, setupSource{})
+	m := newSetup(context.Background(), config.Defaults(), path, setupSource{}, theme.Styles{})
 	_, cmd := m.Update(setupKey(tea.KeyEscape))
 	if _, ok := cmd().(setupCanceledMsg); !ok {
 		t.Fatal("missing cancel message")
@@ -108,7 +109,7 @@ func TestSetupCancelPreservesConfig(t *testing.T) {
 
 func TestSetupDiscoveryRetryAndBack(t *testing.T) {
 	client := setupSource{err: errors.New("discovery failed")}
-	m := newSetup(context.Background(), config.Defaults(), "", client)
+	m := newSetup(context.Background(), config.Defaults(), "", client, theme.Styles{})
 	m, _ = m.Update(m.Init()())
 	if m.err == nil || !strings.Contains(m.View(80, 20), "discovery failed") {
 		t.Fatal("discovery error hidden")
@@ -146,7 +147,7 @@ func TestSetupDiscoveryRetryAndBack(t *testing.T) {
 }
 
 func TestSetupValidationAndSaveError(t *testing.T) {
-	m := newSetup(context.Background(), config.Defaults(), t.TempDir(), setupSource{})
+	m := newSetup(context.Background(), config.Defaults(), t.TempDir(), setupSource{}, theme.Styles{})
 	m.step = setupQuery
 	m.query.SetValue("  ")
 	m, cmd := m.Update(setupKey(tea.KeyEnter))
@@ -170,7 +171,7 @@ func TestSetupKeepsExistingCalendarSelection(t *testing.T) {
 	cfg := config.Defaults()
 	cfg.Account, cfg.Client, cfg.Calendars = "alex@example.com", "work", []string{"private"}
 	client := setupSource{accounts: []source.Account{{Email: cfg.Account, Client: cfg.Client}}, calendars: []source.Calendar{{ID: "private"}}}
-	m := newSetup(context.Background(), cfg, "", client)
+	m := newSetup(context.Background(), cfg, "", client, theme.Styles{})
 	m, _ = m.Update(m.Init()())
 	m, cmd := m.Update(setupKey(tea.KeyEnter))
 	m, _ = m.Update(cmd())
@@ -184,7 +185,7 @@ func TestSetupUnavailableAccountDoesNotBlockHealthyAccount(t *testing.T) {
 		{Email: "old@example.com", Client: "default", Error: "token unavailable"},
 		{Email: "alex@example.com", Client: "default"},
 	}}
-	m := newSetup(context.Background(), config.Defaults(), "", client)
+	m := newSetup(context.Background(), config.Defaults(), "", client, theme.Styles{})
 	m, _ = m.Update(m.Init()())
 	m, _ = m.Update(setupKey(tea.KeyEnter))
 	if m.err == nil {
@@ -201,7 +202,7 @@ func TestSetupInputScrollAndVirtualCursor(t *testing.T) {
 	t.Setenv("NO_COLOR", "1")
 	for _, step := range []setupStep{setupQuery, setupProjects} {
 		m := testModel(t)
-		s := newSetup(m.ctx, config.Defaults(), "", m.client)
+		s := newSetup(m.ctx, config.Defaults(), "", m.client, theme.Styles{})
 		s.step = step
 		s.loading = false
 		s.query.SetValue("")
@@ -248,7 +249,7 @@ func TestSetupInputScrollAndVirtualCursor(t *testing.T) {
 func TestSetupUnicodeCursorAndSanitization(t *testing.T) {
 	t.Setenv("NO_COLOR", "1")
 	m := testModel(t)
-	s := newSetup(m.ctx, config.Defaults(), "", m.client)
+	s := newSetup(m.ctx, config.Defaults(), "", m.client, theme.Styles{})
 	s.step = setupQuery
 	s.query.SetValue("界界ab")
 	s.query.Focus()
@@ -282,7 +283,7 @@ func TestSetupUnicodeCursorAndSanitization(t *testing.T) {
 
 func TestResizeKeepsMiddleCursorVisible(t *testing.T) {
 	m := testModel(t)
-	s := newSetup(m.ctx, config.Defaults(), "", m.client)
+	s := newSetup(m.ctx, config.Defaults(), "", m.client, theme.Styles{})
 	s.step = setupQuery
 	s.query.SetValue(strings.Repeat("a", 80))
 	s.query.CursorEnd()
@@ -311,7 +312,7 @@ func TestSetupInputSanitizesUntrustedTextBeforeStyling(t *testing.T) {
 	m := testModel(t)
 	cfg := config.Defaults()
 	cfg.MailQuery = "hello\x1b[31mred\x1b[0m\x1b]52;c;payload\a"
-	s := newSetup(m.ctx, cfg, "", m.client)
+	s := newSetup(m.ctx, cfg, "", m.client, theme.Styles{})
 	s.step = setupQuery
 	s.query.Focus()
 	m.setup = &s

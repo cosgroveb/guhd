@@ -53,7 +53,7 @@ func (m *model) openDetail() tea.Cmd {
 	if m.length(m.section) == 0 {
 		return nil
 	}
-	d := &detailView{id: m.selectedID(m.section), viewport: viewport.New()}
+	d := &detailView{id: m.selectedID(m.section), viewport: viewport.New(), image: imageView{index: -1}}
 	m.request++
 	d.request = m.request
 	n := m.selected[m.section]
@@ -82,11 +82,17 @@ func (m *model) openDetail() tea.Cmd {
 	if m.section == 1 {
 		if m.preview {
 			d.loading = false
+			if d.id == "preview-image" {
+				attachment, _ := previewImage()
+				d.attachments = []source.Attachment{attachment}
+			}
 			d.text = "From: Morgan <morgan@example.test>\nTo: alex@example.test\n\nHere is the agenda for our afternoon review.\n\nThis fictional message previews the theme without contacting Google.\n\n" + strings.Repeat("Notes for discussion and follow-up.\n", 12)
 			m.resizeDetail()
 			return nil
 		}
-		ctx, c, a, id, req := m.ctx, m.client, m.account(), d.id, d.request
+		ctx, cancel := context.WithCancel(m.ctx)
+		d.cancel = cancel
+		c, a, id, req := m.client, m.account(), d.id, d.request
 		return func() tea.Msg { detail, err := c.Detail(ctx, a, id); return detailMsg{req, id, detail, err} }
 	}
 	return nil
@@ -104,7 +110,8 @@ func (m *model) resizeDetail() {
 			text = "Link/path: " + plainText(d.target) + "\n\n" + text
 		}
 		text = plainText(d.title) + "\n\n" + text
-		d.viewport.SetContent(m.styles.Normal.Render(ansi.Hardwrap(text, max(1, width), true)))
+		text = m.styles.Normal.Render(ansi.Hardwrap(text, max(1, width), true))
+		d.viewport.SetContent(text + m.imageText())
 	}
 }
 func (m *model) target() (string, bool) {

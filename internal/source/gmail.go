@@ -104,10 +104,14 @@ func (g Gog) Detail(ctx context.Context, account Account, id string) (MessageDet
 			LabelIDs                            []string
 			Payload                             mimePart
 		}
-		Headers struct{ From, To, Subject, Date string }
-		Body    string
+		Headers     struct{ From, To, Subject, Date string }
+		Body        string
+		Attachments []struct {
+			AttachmentID, Filename, MIMEType string
+			Size                             int
+		}
 	}
-	if err := g.read(ctx, account, "message", &response, "gmail", "get", "--format", "full", "--", id); err != nil {
+	if err := g.read(ctx, account, "message", &response, "gmail", "get", "--format", "full", "--use-indexed-attachment-ids=false", "--", id); err != nil {
 		return MessageDetail{}, err
 	}
 	w := response.Message
@@ -128,7 +132,20 @@ func (g Gog) Detail(ctx context.Context, account Account, id string) (MessageDet
 	} else if !hasInlinePlain(w.Payload) && hasHTML(w.Payload) {
 		body = htmlText(body)
 	}
-	return MessageDetail{Message: m, To: response.Headers.To, Body: body}, nil
+	result := MessageDetail{Message: m, To: response.Headers.To, Body: body}
+	for _, a := range response.Attachments {
+		mediaType := normalizeMIMEType(a.MIMEType)
+		if !strings.HasPrefix(mediaType, "image/") {
+			continue
+		}
+		attachment := Attachment{ID: a.AttachmentID, Name: a.Filename, MIMEType: mediaType, Size: a.Size}
+		attachment.Unavailable = attachmentUnavailable(attachment)
+		result.Attachments = append(result.Attachments, attachment)
+		if len(result.Attachments) == 20 {
+			break
+		}
+	}
+	return result, nil
 }
 
 func hasHTML(part mimePart) bool {

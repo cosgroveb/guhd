@@ -1,9 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 - 2026-10-01
 
 - Add custom JSON themes, optional borders and backgrounds, and a built-in amber moni-chrome theme. Keep plain as the default.
 - Add `--theme` and an offline `--preview` with fictional dashboard and setup states.
+- Preview Gmail image attachments on demand with Kitty graphics or portable terminal thumbnails.
 
 ## 0.1.2 - 2026-10-01
 

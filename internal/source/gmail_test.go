@@ -46,7 +46,7 @@ func TestDetailArguments(t *testing.T) {
 	if err := json.Unmarshal(data, &args); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"--json", "--no-input", "--readonly", "--color", "never", "--wrap-untrusted=false", "--account", account.Email, "--client", account.Client, "gmail", "get", "--format", "full", "--", "-opaque ID"}
+	want := []string{"--json", "--no-input", "--readonly", "--color", "never", "--wrap-untrusted=false", "--account", account.Email, "--client", account.Client, "gmail", "get", "--format", "full", "--use-indexed-attachment-ids=false", "--", "-opaque ID"}
 	if !reflect.DeepEqual(args, want) {
 		t.Fatalf("args=%q want=%q", args, want)
 	}

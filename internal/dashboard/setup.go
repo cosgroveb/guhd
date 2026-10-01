@@ -54,11 +54,7 @@ type setupModel struct {
 	preview   bool
 }
 
-func newSetup(ctx context.Context, cfg config.Config, path string, client dataSource, styles ...theme.Styles) setupModel {
-	var style theme.Styles
-	if len(styles) > 0 {
-		style = styles[0]
-	}
+func newSetup(ctx context.Context, cfg config.Config, path string, client dataSource, style theme.Styles) setupModel {
 	inputStyle := textinput.StyleState{Text: style.Normal, Placeholder: style.Muted, Suggestion: style.Muted, Prompt: style.Heading}
 	inputStyles := textinput.Styles{Focused: inputStyle, Blurred: inputStyle}
 	query := textinput.New()

@@ -41,10 +41,10 @@ The formula installs gog from **openclaw/tap/gogcli** and Git. Authorize Gmail a
 
 ## Debian and Ubuntu
 
-Download **guhd_0.1.2-1_amd64.deb** or **guhd_0.1.2-1_arm64.deb** from <https://github.com/cosgroveb/guhd/releases/tag/v0.1.2>. Choose the architecture reported by **dpkg --print-architecture**. Run these commands from the download directory:
+Download **guhd_0.2.0-1_amd64.deb** or **guhd_0.2.0-1_arm64.deb** from <https://github.com/cosgroveb/guhd/releases/tag/v0.2.0>. Choose the architecture reported by **dpkg --print-architecture**. Run these commands from the download directory:
 
 ```sh
-sudo apt install ./guhd_0.1.2-1_$(dpkg --print-architecture).deb
+sudo apt install ./guhd_0.2.0-1_$(dpkg --print-architecture).deb
 guhd --version
 man guhd
 ```
@@ -75,10 +75,10 @@ Build packages in Debian sid with the dependencies declared in **debian/control*
 sudo apt-get update
 sudo apt-get install -y ca-certificates git lintian
 sudo apt-get build-dep -y .
-make deb VERSION=0.1.2
+make deb VERSION=0.2.0
 ```
 
-The helper downloads Go modules, vendors them, and writes binary and source packages to **dist/**. The source package includes **guhd_0.1.2-1.dsc**, **guhd_0.1.2.orig.tar.gz**, and **guhd_0.1.2-1.debian.tar.xz**. With build dependencies installed, rebuild the extracted source without network access using **dpkg-buildpackage -us -uc**.
+The helper downloads Go modules, vendors them, and writes binary and source packages to **dist/**. The source package includes **guhd_0.2.0-1.dsc**, **guhd_0.2.0.orig.tar.gz**, and **guhd_0.2.0-1.debian.tar.xz**. With build dependencies installed, rebuild the extracted source without network access using **dpkg-buildpackage -us -uc**.
 
 # SETUP
 
@@ -112,7 +112,7 @@ Long options require two dashes. Single-dash spellings such as **-setup** and **
 : Use a built-in or custom theme for this process. Overrides **theme** in configuration without changing saved settings.
 
 **--preview**
-: Open an interactive fictional dashboard without reading configuration, running gog or Git, saving settings, opening links, or copying to the clipboard. Defaults to **plain**. Cannot combine with **--config** or **--setup**. Press **s** from the overview to preview setup, then Escape to return.
+: Open an interactive fictional dashboard without reading configuration, running gog or Git, saving settings, opening links, or copying to the clipboard. Defaults to **plain**. Cannot combine with **--config** or **--setup**. Press **s** from the overview to preview setup, then Escape to return. Open the first inbox message and press **i** to preview a fictional image.
 
 # DASHBOARD KEYS
 
@@ -136,6 +136,9 @@ Long options require two dashes. Single-dash spellings such as **-setup** and **
 
 **Enter**
 : Open selected item details. Highlighting mail alone does not fetch its body.
+
+**i**
+: Fetch the first image attachment in mail details, then cycle through available images. Opening mail does not download images.
 
 **Escape**
 : Return to the overview.
@@ -188,6 +191,9 @@ The default file is **guhd/config.json** under the operating system's user confi
 
 **projects**
 : Absolute Git directory paths. An empty list hides the projects section.
+
+**images**
+: Image rendering mode: **auto** (default), **kitty**, **blocks**, or **off**. Off disables attachment requests. Auto uses native images in a directly identified Kitty terminal with truecolor, and colored half-block thumbnails elsewhere.
 
 **refresh_seconds**
 : Positive integer refresh interval in seconds, measured from each fetch completion. Default: 300. The value must fit a Go time duration.
@@ -249,6 +255,16 @@ Cannot:
 - Manage Google credentials or authorize accounts.
 
 Opening Gmail in a browser can cause Gmail itself to mark a message read. guhd fetches message bodies on Enter and keeps details in memory. Detail previews truncate content after 128 KiB.
+
+# IMAGE ATTACHMENTS
+
+Press **i** in message details to view PNG, JPEG, or GIF attachments. GIFs show their first frame. Each message lists at most 20 image candidates. Unsupported formats and attachments above 3 MiB remain unavailable. Decoded images must fit within 4096 pixels per side and 8 million pixels. guhd reduces retained images to 1024 pixels on the longer edge and displays at most 120 columns by 60 rows.
+
+Images load through gog into a private temporary directory that is removed after the request. guhd retains only the current decoded image. It never fetches remote HTML image URLs or tracking pixels.
+
+Native images use Kitty Unicode placeholders. Other colored terminals receive pixelated half-block thumbnails, with transparent pixels composited against the theme background or a neutral dark fallback. **NO_COLOR** or **TERM=dumb** uses a text placeholder. Neither iTerm2's image protocol nor Sixel is supported.
+
+Under tmux, auto mode uses thumbnails. Set **images** to **kitty** only when the outer terminal supports Kitty graphics, truecolor works through tmux, and tmux has **allow-passthrough on**. Otherwise use **blocks**. Native image resources are released when replaced, when leaving details, and when guhd exits normally.
 
 # ENVIRONMENT
 

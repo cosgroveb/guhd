@@ -1,11 +1,12 @@
 package theme
 
 import (
-	"charm.land/lipgloss/v2"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"charm.land/lipgloss/v2"
 )
 
 func TestBuiltins(t *testing.T) {

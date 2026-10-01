@@ -165,3 +165,20 @@ func TestThemeConfig(t *testing.T) {
 		t.Fatalf("legacy theme: %+v, %v", got, err)
 	}
 }
+
+func TestImageMode(t *testing.T) {
+	for _, mode := range []string{"auto", "kitty", "blocks", "off"} {
+		cfg := Defaults()
+		cfg.Account = "test@example.com"
+		cfg.Images = mode
+		if err := Validate(cfg); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cfg := Defaults()
+	cfg.Account = "test@example.com"
+	cfg.Images = "sixel"
+	if err := Validate(cfg); err == nil {
+		t.Fatal("accepted unknown image mode")
+	}
+}

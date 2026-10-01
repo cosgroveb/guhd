@@ -15,6 +15,7 @@ import (
 
 type Config struct {
 	Theme          string   `json:"theme"`
+	Images         string   `json:"images,omitempty"`
 	Account        string   `json:"account"`
 	Client         string   `json:"client"`
 	Calendars      []string `json:"calendars"`
@@ -24,7 +25,7 @@ type Config struct {
 }
 
 func Defaults() Config {
-	return Config{Theme: "plain", Client: "default", MailQuery: "in:inbox", RefreshSeconds: 300}
+	return Config{Theme: "plain", Images: "auto", Client: "default", MailQuery: "in:inbox", RefreshSeconds: 300}
 }
 
 func DefaultPath() (string, error) {
@@ -36,6 +37,11 @@ func DefaultPath() (string, error) {
 }
 
 func Validate(cfg Config) error {
+	switch cfg.Images {
+	case "", "auto", "kitty", "blocks", "off":
+	default:
+		return errors.New("images must be auto, kitty, blocks, or off")
+	}
 	for _, value := range append(append([]string{cfg.Account, cfg.Client, cfg.MailQuery}, cfg.Calendars...), cfg.Projects...) {
 		if strings.ContainsRune(value, 0) {
 			return errors.New("configuration values must not contain NUL characters")

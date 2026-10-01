@@ -6,12 +6,14 @@ import (
 
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/colorprofile"
 	"github.com/cosgroveb/guhd/internal/config"
 	"github.com/cosgroveb/guhd/internal/source"
 	"github.com/cosgroveb/guhd/internal/theme"
 )
 
 type dataSource interface {
+	Attachment(context.Context, source.Account, string, source.Attachment) ([]byte, error)
 	Accounts(context.Context) ([]source.Account, error)
 	Calendars(context.Context, source.Account) ([]source.Calendar, error)
 	Events(context.Context, source.Account, []string, time.Time) ([]source.Event, error)
@@ -50,6 +52,9 @@ type detailMsg struct {
 type clockMsg time.Time
 type actionMsg struct{ err error }
 type detailView struct {
+	cancel                  context.CancelFunc
+	attachments             []source.Attachment
+	image                   imageView
 	id, title, text, target string
 	local                   bool
 	loading                 bool
@@ -57,6 +62,8 @@ type detailView struct {
 	viewport                viewport.Model
 }
 type model struct {
+	profile                colorprofile.Profile
+	ownedImages            map[uint32]ownedImage
 	ctx                    context.Context
 	cancel                 context.CancelFunc
 	cfg                    config.Config
@@ -81,12 +88,9 @@ type model struct {
 }
 
 // New creates a dashboard whose fetches share the application's lifetime.
-func New(ctx context.Context, cfg config.Config, path string, setup bool, styles ...theme.Styles) tea.Model {
+func New(ctx context.Context, cfg config.Config, path string, setup bool, styles theme.Styles) tea.Model {
 	ctx, cancel := context.WithCancel(ctx)
-	m := &model{ctx: ctx, cancel: cancel, cfg: cfg, path: path, client: source.Gog{}, now: time.Now()}
-	if len(styles) > 0 {
-		m.styles = styles[0]
-	}
+	m := &model{ctx: ctx, cancel: cancel, cfg: cfg, path: path, client: source.Gog{}, now: time.Now(), styles: styles}
 	m.focusInitialSection()
 	if setup {
 		s := newSetup(ctx, cfg, path, m.client, m.styles)
@@ -157,6 +161,9 @@ func (m *model) completed(i int, err error) {
 	}
 }
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if profile, ok := msg.(tea.ColorProfileMsg); ok {
+		m.profile = profile.Profile
+	}
 	if key, ok := msg.(tea.KeyPressMsg); ok && key.String() == "ctrl+c" {
 		m.cancel()
 		return m, tea.Quit
@@ -166,6 +173,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.resizeDetail()
 		width, height := m.contentSize()
 		msg = tea.WindowSizeMsg{Width: width, Height: height}
+		if m.setup == nil {
+			return m, m.prepareImage()
+		}
 	}
 	if m.preview {
 		if k, ok := msg.(tea.KeyPressMsg); ok && k.String() == "s" && m.setup == nil && m.detail == nil && !m.help {
@@ -198,6 +208,15 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 	switch v := msg.(type) {
+	case tea.ColorProfileMsg:
+		return m, m.prepareImage()
+	case imageMsg:
+		return m, m.imageLoaded(v)
+	case imageDeletedMsg:
+		delete(m.ownedImages, uint32(v))
+		return m, nil
+	case imageReadyMsg:
+		return m, m.imageReady(v)
 	case clockMsg:
 		if m.preview {
 			return m, nil
@@ -244,6 +263,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				d.text = "Unable to load message: " + v.err.Error()
 			} else {
 				d.text = messageText(v.detail)
+				d.attachments = v.detail.Attachments
+				d.image.index = -1
 			}
 			m.resizeDetail()
 		}
@@ -261,9 +282,15 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "?":
 			m.help = !m.help
 		case "esc":
+			cleanup := m.closeDetail()
 			m.detail = nil
 			m.help = false
 			m.status = ""
+			return m, cleanup
+		case "i":
+			if !m.help {
+				return m, m.nextImage()
+			}
 		case "r":
 			return m, m.refresh(true)
 		case "o", "y":

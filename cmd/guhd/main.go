@@ -123,7 +123,13 @@ Examples:
 		model = dashboard.New(ctx, cfg, *path, needsSetup, styles)
 	}
 	program := tea.NewProgram(model, tea.WithContext(ctx), tea.WithInput(stdin), tea.WithOutput(stdout))
-	if _, err := program.Run(); err != nil && ctx.Err() == nil {
+	_, runErr := program.Run()
+	cleanupErr := dashboard.CleanupImages(model, stdout)
+	if cleanupErr != nil {
+		_, _ = fmt.Fprintln(stderr, "guhd: image cleanup:", cleanupErr)
+		return 1
+	}
+	if err := runErr; err != nil && ctx.Err() == nil {
 		_, _ = fmt.Fprintln(stderr, "guhd:", err)
 		return 1
 	}

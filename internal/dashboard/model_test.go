@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/cosgroveb/guhd/internal/config"
 	"github.com/cosgroveb/guhd/internal/source"
+	"github.com/cosgroveb/guhd/internal/theme"
 )
 
 type fixtureSource struct {
@@ -18,6 +19,9 @@ type fixtureSource struct {
 	eventsErr                           error
 }
 
+func (*fixtureSource) Attachment(context.Context, source.Account, string, source.Attachment) ([]byte, error) {
+	return nil, nil
+}
 func (*fixtureSource) Accounts(context.Context) ([]source.Account, error) { return nil, nil }
 func (*fixtureSource) Calendars(context.Context, source.Account) ([]source.Calendar, error) {
 	return nil, nil
@@ -39,7 +43,7 @@ func (f *fixtureSource) Detail(_ context.Context, _ source.Account, id string) (
 }
 func testModel(t *testing.T) *model {
 	t.Helper()
-	m := New(context.Background(), config.Config{Account: "test@example.com", MailQuery: "in:inbox", RefreshSeconds: 300}, "", false).(*model)
+	m := New(context.Background(), config.Config{Account: "test@example.com", MailQuery: "in:inbox", RefreshSeconds: 300}, "", false, theme.Styles{}).(*model)
 	t.Cleanup(m.cancel)
 	m.width, m.height = 80, 24
 	m.now = time.Date(2026, 9, 30, 12, 0, 0, 0, time.UTC)
@@ -87,7 +91,7 @@ func TestInitialFocusNavigation(t *testing.T) {
 						initial.Calendars = nil
 					}
 				}
-				m := New(context.Background(), initial, "", setup).(*model)
+				m := New(context.Background(), initial, "", setup, theme.Styles{}).(*model)
 				t.Cleanup(m.cancel)
 				m.client = &fixtureSource{}
 				if setup {
