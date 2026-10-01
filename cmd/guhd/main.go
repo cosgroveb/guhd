@@ -1,19 +1,19 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/cosgroveb/guhd/internal/config"
 	"github.com/cosgroveb/guhd/internal/dashboard"
+	"github.com/spf13/pflag"
 	"golang.org/x/term"
 )
 
@@ -22,18 +22,14 @@ var version = "dev"
 func main() { os.Exit(run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr)) }
 
 func run(args []string, stdin *os.File, stdout, stderr io.Writer) int {
-	flags := flag.NewFlagSet("guhd", flag.ContinueOnError)
-	flags.SetOutput(stderr)
-	help := flags.Bool("help", false, "print help and exit")
-	flags.BoolVar(help, "h", false, "print help and exit")
-	showVersion := flags.Bool("version", false, "print version and exit")
-	path := flags.String("config", "", "configuration file path")
-	setup := flags.Bool("setup", false, "configure accounts and dashboard settings")
-	flags.Usage = func() {
-		_, _ = fmt.Fprintln(flags.Output(), "Usage: guhd [--config PATH] [--setup]\n\nGoogle unified heads up display.")
-		flags.PrintDefaults()
-	}
-	if err := flags.Parse(args); err != nil {
+	flags := pflag.NewFlagSet("guhd", pflag.ContinueOnError)
+	flags.SetInterspersed(false)
+	help := flags.BoolP("help", "h", false, "Show help")
+	showVersion := flags.Bool("version", false, "Show version")
+	path := flags.String("config", "", "Use another configuration file")
+	setup := flags.Bool("setup", false, "Configure account, calendars, and projects")
+	if err := parseFlags(flags, args); err != nil {
+		_, _ = fmt.Fprintln(stderr, "guhd:", err)
 		return 2
 	}
 	if flags.NArg() != 0 {
@@ -41,10 +37,20 @@ func run(args []string, stdin *os.File, stdout, stderr io.Writer) int {
 		return 2
 	}
 	if *help {
-		var usage bytes.Buffer
-		flags.SetOutput(&usage)
-		flags.Usage()
-		if _, err := usage.WriteTo(stdout); err != nil {
+		if _, err := io.WriteString(stdout, `Usage: guhd [options]
+
+Google unified heads up display.
+
+  --setup         Configure account, calendars, and projects
+  --config PATH   Use another configuration file
+  -h, --help      Show help
+  --version       Show version
+
+Examples:
+  guhd
+  guhd --setup
+  guhd --config work.json
+`); err != nil {
 			_, _ = fmt.Fprintln(stderr, "guhd: write help:", err)
 			return 1
 		}
@@ -57,12 +63,7 @@ func run(args []string, stdin *os.File, stdout, stderr io.Writer) int {
 		}
 		return 0
 	}
-	explicit := false
-	flags.Visit(func(f *flag.Flag) {
-		if f.Name == "config" {
-			explicit = true
-		}
-	})
+	explicit := flags.Changed("config")
 	if explicit && *path == "" {
 		_, _ = fmt.Fprintln(stderr, "guhd: --config requires a nonempty path")
 		return 2
@@ -93,6 +94,34 @@ func run(args []string, stdin *os.File, stdout, stderr io.Writer) int {
 		return 1
 	}
 	return 0
+}
+
+func parseFlags(flags *pflag.FlagSet, args []string) error {
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if arg == "--" || arg == "-" || !strings.HasPrefix(arg, "-") {
+			break
+		}
+		if arg == "--config" {
+			i++
+			continue
+		}
+		name, _, _ := strings.Cut(strings.TrimPrefix(arg, "-"), "=")
+		var err error
+		if flags.Lookup(name) != nil {
+			err = fmt.Errorf("use --%s instead of -%s", name, name)
+		} else if strings.HasPrefix(strings.TrimLeft(name, "h"), "test.") {
+			// pflag skips test.* even after consuming -h in a shorthand group.
+			err = fmt.Errorf("unknown flag: %s", arg)
+		}
+		if err != nil {
+			if earlier := flags.Parse(args[:i]); earlier != nil {
+				return earlier
+			}
+			return err
+		}
+	}
+	return flags.Parse(args)
 }
 
 func startupConfig(path string, explicit, setup bool) (config.Config, bool, error) {

@@ -39,10 +39,10 @@ The formula installs gog from **openclaw/tap/gogcli** and Git. Authorize Gmail a
 
 ## Debian and Ubuntu
 
-Download **guhd_0.1.1-1_amd64.deb** or **guhd_0.1.1-1_arm64.deb** from <https://github.com/cosgroveb/guhd/releases/tag/v0.1.1>. Choose the architecture reported by **dpkg --print-architecture**. Run these commands from the download directory:
+Download **guhd_0.1.2-1_amd64.deb** or **guhd_0.1.2-1_arm64.deb** from <https://github.com/cosgroveb/guhd/releases/tag/v0.1.2>. Choose the architecture reported by **dpkg --print-architecture**. Run these commands from the download directory:
 
 ```sh
-sudo apt install ./guhd_0.1.1-1_$(dpkg --print-architecture).deb
+sudo apt install ./guhd_0.1.2-1_$(dpkg --print-architecture).deb
 guhd --version
 man guhd
 ```
@@ -73,10 +73,10 @@ Build packages in Debian sid with the dependencies declared in **debian/control*
 sudo apt-get update
 sudo apt-get install -y ca-certificates git lintian
 sudo apt-get build-dep -y .
-make deb VERSION=0.1.1
+make deb VERSION=0.1.2
 ```
 
-The helper downloads Go modules, vendors them, and writes binary and source packages to **dist/**. The source package includes **guhd_0.1.1-1.dsc**, **guhd_0.1.1.orig.tar.gz**, and **guhd_0.1.1-1.debian.tar.xz**. With build dependencies installed, rebuild the extracted source without network access using **dpkg-buildpackage -us -uc**.
+The helper downloads Go modules, vendors them, and writes binary and source packages to **dist/**. The source package includes **guhd_0.1.2-1.dsc**, **guhd_0.1.2.orig.tar.gz**, and **guhd_0.1.2-1.debian.tar.xz**. With build dependencies installed, rebuild the extracted source without network access using **dpkg-buildpackage -us -uc**.
 
 # SETUP
 
@@ -92,13 +92,15 @@ Setup does not edit the refresh interval. Edit **refresh_seconds** in the config
 
 # OPTIONS
 
+Long options require two dashes. Single-dash spellings such as **-setup** and **-config** are rejected with a correction. Use **-h** for short help.
+
 **--help**, **-h**
 : Print usage and exit.
 
 **--version**
 : Print version and exit.
 
-**--config** *PATH*
+**--config** *PATH*, **--config=***PATH*
 : Use the selected JSON configuration. A missing explicit path is an error unless you also pass **--setup**.
 
 **--setup**

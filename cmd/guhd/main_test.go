@@ -13,31 +13,107 @@ import (
 
 func TestRunFlags(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Chdir(t.TempDir())
+	cfg := config.Defaults()
+	cfg.Account = "person@example.com"
+	for _, path := range []string{"work.json", "-setup", "--version", "--", "-help", "-test.v", "-htest.v"} {
+		if err := config.Save(path, cfg); err != nil {
+			t.Fatal(err)
+		}
+	}
 	for _, tt := range []struct {
 		args   []string
 		code   int
 		output string
+		err    string
 	}{
-		{[]string{"--help"}, 0, "Usage: guhd"},
-		{[]string{"-h"}, 0, "Usage: guhd"},
-		{[]string{"--version"}, 0, "guhd dev\n"},
-		{[]string{"--unknown"}, 2, ""},
-		{[]string{"--config"}, 2, ""},
-		{[]string{"--config", ""}, 2, ""},
-		{[]string{"unexpected"}, 2, ""},
-		{nil, 1, ""},
+		{[]string{"--help"}, 0, "Usage: guhd", ""},
+		{[]string{"-h"}, 0, "Usage: guhd", ""},
+		{[]string{"--version"}, 0, "guhd dev\n", ""},
+		{[]string{"--config", "work.json"}, 1, "", "interactive terminal"},
+		{[]string{"--config=work.json"}, 1, "", "interactive terminal"},
+		{[]string{"--setup"}, 1, "", "interactive terminal"},
+		{[]string{"--config", "-setup"}, 1, "", "interactive terminal"},
+		{[]string{"--config=-setup"}, 1, "", "interactive terminal"},
+		{[]string{"--config", "--version"}, 1, "", "interactive terminal"},
+		{[]string{"--config", "--"}, 1, "", "interactive terminal"},
+		{[]string{"--config", "-help"}, 1, "", "interactive terminal"},
+		{[]string{"-setup"}, 2, "", "use --setup instead of -setup"},
+		{[]string{"-setup=true"}, 2, "", "use --setup instead of -setup"},
+		{[]string{"-config", "work.json"}, 2, "", "use --config instead of -config"},
+		{[]string{"-config=work.json"}, 2, "", "use --config instead of -config"},
+		{[]string{"-version"}, 2, "", "use --version instead of -version"},
+		{[]string{"-version=true"}, 2, "", "use --version instead of -version"},
+		{[]string{"-help"}, 2, "", "use --help instead of -help"},
+		{[]string{"-help=true"}, 2, "", "use --help instead of -help"},
+		{[]string{"-htest.v"}, 2, "", "unknown flag: -htest.v"},
+		{[]string{"-hhtest.v"}, 2, "", "unknown flag: -hhtest.v"},
+		{[]string{"-htest.v=true"}, 2, "", "unknown flag: -htest.v=true"},
+		{[]string{"--config", "-htest.v"}, 1, "", "interactive terminal"},
+		{[]string{"--config=-htest.v"}, 1, "", "interactive terminal"},
+		{[]string{"-h=true"}, 0, "Usage: guhd", ""},
+		{[]string{"-h=false"}, 1, "", "interactive terminal"},
+		{[]string{"-h=test.v"}, 2, "", "invalid argument"},
+		{[]string{"-test.v"}, 2, "", "unknown flag: -test.v"},
+		{[]string{"-test.v=true"}, 2, "", "unknown flag: -test.v=true"},
+		{[]string{"--version", "-test.v"}, 2, "", "unknown flag: -test.v"},
+		{[]string{"--config", "-test.v"}, 1, "", "interactive terminal"},
+		{[]string{"--config=-test.v"}, 1, "", "interactive terminal"},
+		{[]string{"--", "-test.v"}, 2, "", "unexpected positional arguments"},
+		{[]string{"unexpected", "-test.v"}, 2, "", "unexpected positional arguments"},
+		{[]string{"-elp"}, 2, "", "unknown shorthand flag: 'e' in -elp"},
+		{[]string{"-h", "-elp"}, 2, "", "unknown shorthand flag: 'e' in -elp"},
+		{[]string{"--unknown", "-setup"}, 2, "", "unknown flag: --unknown"},
+		{[]string{"--setup=invalid", "-test.v"}, 2, "", "invalid argument"},
+		{[]string{"--unknown"}, 2, "", "unknown flag: --unknown"},
+		{[]string{"-x"}, 2, "", "unknown shorthand flag"},
+		{[]string{"--config"}, 2, "", "flag needs an argument: --config"},
+		{[]string{"--config", ""}, 2, "", "--config requires a nonempty path"},
+		{[]string{"--config="}, 2, "", "--config requires a nonempty path"},
+		{[]string{"--setup=invalid"}, 2, "", "invalid argument"},
+		{[]string{"unexpected"}, 2, "", "unexpected positional arguments"},
+		{[]string{"--", "-setup"}, 2, "", "unexpected positional arguments"},
+		{[]string{"--help", "unexpected"}, 2, "", "unexpected positional arguments"},
+		{[]string{"unexpected", "--help"}, 2, "", "unexpected positional arguments"},
+		{[]string{"--help", "--unknown"}, 2, "", "unknown flag"},
+		{[]string{"--"}, 1, "", "interactive terminal"},
+		{nil, 1, "", "interactive terminal"},
 	} {
-		var stdout, stderr bytes.Buffer
-		got := run(tt.args, os.Stdin, &stdout, &stderr)
-		if got != tt.code {
-			t.Fatalf("%v exit %d, want %d: %s", tt.args, got, tt.code, &stderr)
-		}
-		if tt.code == 0 {
-			if !strings.Contains(stdout.String(), tt.output) || stderr.Len() != 0 {
-				t.Fatalf("%v stdout=%q stderr=%q", tt.args, &stdout, &stderr)
+		t.Run(strings.Join(tt.args, " "), func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			got := run(tt.args, os.Stdin, &stdout, &stderr)
+			if got != tt.code {
+				t.Fatalf("%v exit %d, want %d: %s", tt.args, got, tt.code, &stderr)
 			}
-		} else if stdout.Len() != 0 || stderr.Len() == 0 {
-			t.Fatalf("%v stdout=%q stderr=%q", tt.args, &stdout, &stderr)
+			if tt.code == 0 {
+				if !strings.Contains(stdout.String(), tt.output) || stderr.Len() != 0 {
+					t.Fatalf("%v stdout=%q stderr=%q", tt.args, &stdout, &stderr)
+				}
+			} else if stdout.Len() != 0 || !strings.Contains(stderr.String(), tt.err) {
+				t.Fatalf("%v stdout=%q stderr=%q, want error %q", tt.args, &stdout, &stderr, tt.err)
+			}
+		})
+	}
+}
+
+func TestRunHelpWithoutRuntime(t *testing.T) {
+	t.Setenv("HOME", "")
+	t.Setenv("XDG_CONFIG_HOME", "")
+	t.Setenv("PATH", "")
+	for _, arg := range []string{"--help", "-h", "--version"} {
+		var stdout, stderr bytes.Buffer
+		if code := run([]string{arg}, nil, &stdout, &stderr); code != 0 {
+			t.Fatalf("%s exit %d: %s", arg, code, &stderr)
+		}
+		if stderr.Len() != 0 || stdout.Len() == 0 {
+			t.Fatalf("%s stdout=%q stderr=%q", arg, &stdout, &stderr)
+		}
+		if arg != "--version" {
+			for _, text := range []string{"--setup", "--config PATH", "-h, --help", "--version", "Examples:", "guhd --setup", "guhd --config work.json"} {
+				if !strings.Contains(stdout.String(), text) {
+					t.Fatalf("help missing %q: %s", text, &stdout)
+				}
+			}
 		}
 	}
 }

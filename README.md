@@ -4,14 +4,14 @@ guhd (Google unified heads up display) shows Calendar events and Gmail messages 
 
 ## Install
 
-On macOS, install with Homebrew. On Debian or Ubuntu, download the matching `.deb` from [v0.1.1](https://github.com/cosgroveb/guhd/releases/tag/v0.1.1), then install it with apt. Debian and Ubuntu also need gog installed.
+On macOS, install with Homebrew. On Debian or Ubuntu, download the matching `.deb` from [v0.1.2](https://github.com/cosgroveb/guhd/releases/tag/v0.1.2), then install it with apt. Debian and Ubuntu also need gog installed.
 
 ```sh
 # macOS
 brew install openclaw/tap/gogcli
 brew install cosgroveb/tap/guhd
 # Debian or Ubuntu, from the download directory
-sudo apt install ./guhd_0.1.1-1_$(dpkg --print-architecture).deb
+sudo apt install ./guhd_0.1.2-1_$(dpkg --print-architecture).deb
 ```
 
 ## Use

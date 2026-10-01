@@ -7,6 +7,7 @@ require (
 	charm.land/bubbletea/v2 v2.0.10
 	charm.land/lipgloss/v2 v2.0.6
 	github.com/charmbracelet/x/ansi v0.11.8
+	github.com/spf13/pflag v1.0.10
 	golang.org/x/net v0.55.0
 	golang.org/x/term v0.44.0
 )
