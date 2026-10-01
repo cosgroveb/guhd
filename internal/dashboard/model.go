@@ -81,11 +81,18 @@ type model struct {
 func New(ctx context.Context, cfg config.Config, path string, setup bool) tea.Model {
 	ctx, cancel := context.WithCancel(ctx)
 	m := &model{ctx: ctx, cancel: cancel, cfg: cfg, path: path, client: source.Gog{}, now: time.Now()}
+	m.focusInitialSection()
 	if setup {
 		s := newSetup(ctx, cfg, path, m.client)
 		m.setup = &s
 	}
 	return m
+}
+func (m *model) focusInitialSection() {
+	m.section = 0
+	if len(m.cfg.Calendars) == 0 {
+		m.section = 1
+	}
 }
 func (m *model) Init() tea.Cmd {
 	if m.setup != nil {
@@ -153,6 +160,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case setupSavedMsg:
 			m.cfg = v.cfg
+			m.focusInitialSection()
 			m.setup = nil
 			return m, tea.Batch(m.refresh(false), tick())
 		default:

@@ -56,8 +56,60 @@ func key(s string) tea.KeyPressMsg {
 		return tea.KeyPressMsg{Code: tea.KeyTab}
 	case "down":
 		return tea.KeyPressMsg{Code: tea.KeyDown}
+	case "up":
+		return tea.KeyPressMsg{Code: tea.KeyUp}
 	}
 	return tea.KeyPressMsg{Code: rune(s[0]), Text: s}
+}
+func TestInitialFocusNavigation(t *testing.T) {
+	for _, setup := range []bool{false, true} {
+		for _, tc := range []struct {
+			name      string
+			calendars []string
+			section   int
+		}{
+			{name: "mail only", section: 1},
+			{name: "calendar configured", calendars: []string{"primary"}, section: 0},
+		} {
+			name := tc.name
+			if setup {
+				name += " after setup"
+			}
+			t.Run(name, func(t *testing.T) {
+				cfg := config.Defaults()
+				cfg.Account = "test@example.com"
+				cfg.Calendars = tc.calendars
+				initial := cfg
+				if setup {
+					if len(cfg.Calendars) == 0 {
+						initial.Calendars = []string{"previous"}
+					} else {
+						initial.Calendars = nil
+					}
+				}
+				m := New(context.Background(), initial, "", setup).(*model)
+				t.Cleanup(m.cancel)
+				m.client = &fixtureSource{}
+				if setup {
+					m.Update(setupSavedMsg{cfg: cfg})
+				}
+				m.Update(mailMsg{page: source.MailPage{Messages: []source.Message{{ID: "first"}, {ID: "second"}}}})
+				if len(cfg.Calendars) > 0 {
+					m.Update(eventsMsg{rows: []source.Event{{ID: "first", End: m.now.Add(time.Hour)}, {ID: "second", End: m.now.Add(time.Hour)}}})
+				}
+				for _, keys := range [][2]string{{"j", "k"}, {"down", "up"}} {
+					m.Update(key(keys[0]))
+					if m.section != tc.section || m.selected[tc.section] != 1 {
+						t.Fatalf("%s: section %d, selection %v", keys[0], m.section, m.selected)
+					}
+					m.Update(key(keys[1]))
+					if m.selected[tc.section] != 0 {
+						t.Fatalf("%s: selection %v", keys[1], m.selected)
+					}
+				}
+			})
+		}
+	}
 }
 func TestRefreshIsolationAndNoOverlap(t *testing.T) {
 	m := testModel(t)
