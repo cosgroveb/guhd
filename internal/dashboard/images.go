@@ -6,7 +6,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"image"
-	"image/color"
 	"io"
 	"os"
 	"strings"
@@ -137,11 +136,9 @@ func (m *model) prepareImage() tea.Cmd {
 	cleanup := m.releaseImage()
 	v.cols, v.rows = cols, rows
 	if !m.nativeImages() {
-		var background color.Color
-		if c := m.styles.Normal.GetBackground(); c != nil {
-			if _, transparent := c.(lipgloss.NoColor); !transparent {
-				background = c
-			}
+		background := m.styles.Normal.GetBackground()
+		if _, transparent := background.(lipgloss.NoColor); transparent {
+			background = nil
 		}
 		v.grid = termimage.Blocks(v.decoded, cols, rows, background, m.imageProfile())
 		m.resizeDetail()
