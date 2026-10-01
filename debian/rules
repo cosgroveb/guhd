@@ -6,7 +6,7 @@ export CGO_ENABLED = 0
 export GOPROXY = off
 export GOSUMDB = off
 export GOTOOLCHAIN = local
-export DH_GOLANG_INSTALL_EXTRA = vendor
+export DH_GOLANG_INSTALL_EXTRA = vendor internal/theme/builtins
 
 %:
 	dh $@ --buildsystem=golang --builddirectory=_build --without=single-binary

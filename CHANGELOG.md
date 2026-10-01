@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Add custom JSON themes, optional borders and backgrounds, and a built-in amber moni-chrome theme. Keep plain as the default.
+- Add `--theme` and an offline `--preview` with fictional dashboard and setup states.
+
 ## 0.1.2 - 2026-10-01
 
 - Require GNU-style long flags and suggest corrections for old single-dash spellings. Add concise help and examples.

@@ -6,7 +6,9 @@ guhd - Google unified heads up display
 
 # SYNOPSIS
 
-**guhd** [**--config** *PATH*] [**--setup**]
+**guhd** [**--config** *PATH*] [**--setup**] [**--theme** *NAME*]
+
+**guhd** **--preview** [**--theme** *NAME*]
 
 **guhd** **--help** | **--version**
 
@@ -106,6 +108,12 @@ Long options require two dashes. Single-dash spellings such as **-setup** and **
 **--setup**
 : Open setup to edit configuration. Setup can create a missing file after validating settings. Escape cancels setup without saving.
 
+**--theme** *NAME*
+: Use a built-in or custom theme for this process. Overrides **theme** in configuration without changing saved settings.
+
+**--preview**
+: Open an interactive fictional dashboard without reading configuration, running gog or Git, saving settings, opening links, or copying to the clipboard. Defaults to **plain**. Cannot combine with **--config** or **--setup**. Press **s** from the overview to preview setup, then Escape to return.
+
 # DASHBOARD KEYS
 
 **Up**, **Down**, **k**, **j**
@@ -161,7 +169,8 @@ The default file is **guhd/config.json** under the operating system's user confi
   "calendars": ["alex@example.com"],
   "mail_query": "in:inbox",
   "projects": ["/home/alex/code/example"],
-  "refresh_seconds": 300
+  "refresh_seconds": 300,
+  "theme": "plain"
 }
 ```
 
@@ -183,7 +192,48 @@ The default file is **guhd/config.json** under the operating system's user confi
 **refresh_seconds**
 : Positive integer refresh interval in seconds, measured from each fetch completion. Default: 300. The value must fit a Go time duration.
 
+**theme**
+: Theme name. Default: **plain**. An empty value also selects plain.
+
 Unknown keys, malformed JSON, trailing JSON, and invalid settings cause a path-specific error. guhd reads configuration at startup.
+
+# THEMES
+
+Try the amber moni-chrome theme without Google access:
+
+```sh
+guhd --preview --theme moni-chrome
+```
+
+Set **"theme": "moni-chrome"** in configuration to use it on later launches. **plain** keeps the unframed terminal appearance. Both built-ins use the same JSON format as custom themes. Theme changes take effect on restart.
+
+Put custom themes in **guhd/themes/NAME.json** under the operating system's user configuration directory. This location does not change with **--config**. Names contain only ASCII letters, digits, hyphens, and underscores. The built-in names **plain** and **moni-chrome** are reserved.
+
+Copy [the complete moni-chrome definition](https://github.com/cosgroveb/guhd/blob/main/internal/theme/builtins/moni-chrome.json) to start a custom theme, or use this smaller example as **amber.json**:
+
+```json
+{
+  "version": 1,
+  "palette": {
+    "ink": "#ff9e2c",
+    "screen": "#050301",
+    "glow": "#3c250b"
+  },
+  "roles": {
+    "normal": {"foreground": "ink", "background": "screen"},
+    "heading": {"bold": true},
+    "selected": {"background": "glow", "bold": true},
+    "muted": {"foreground": "#c66a1a"}
+  },
+  "chrome": {"border": "rounded", "padding": 1, "separators": true}
+}
+```
+
+Choose it with **guhd --theme amber**. The supported roles are **normal**, **muted**, **heading**, **selected**, **unread**, **upcoming**, **warning**, **error**, **border**, and **footer**. Each role accepts **foreground**, **background**, **bold**, **italic**, and **underline**. Colors are palette names or **#RRGGBB** values. Missing role fields inherit normal. Set a color to **""** for the terminal default, including transparent backgrounds. Set an attribute to **false** to clear it.
+
+**chrome.border** accepts **none**, **rounded**, **square**, or **double**. **chrome.padding** adds zero to two horizontal cells on each side. **chrome.separators** adds section rules. guhd suppresses this framing when it would leave less than 20×8 content cells, or 24×8 during setup. Selection markers and status words remain visible without color.
+
+Theme files require **version: 1** and cannot exceed 64 KiB. Unknown fields, role names, palette references, invalid colors, and trailing JSON cause an error. guhd adapts colors to the terminal's supported profile. A nonempty **NO_COLOR** removes theme colors and attributes while keeping borders, text cues, and the input cursor.
 
 # DATA AND EXTERNAL ACTIONS
 
@@ -207,6 +257,9 @@ Opening Gmail in a browser can cause Gmail itself to mark a message read. guhd f
 
 **XDG_CONFIG_HOME**
 : Sets the base configuration directory on Linux. The default is **~/.config**.
+
+**NO_COLOR**
+: A nonempty value disables theme colors and text attributes.
 
 Child processes inherit guhd's environment, including gog authentication settings. Configure credentials through gog before launching guhd.
 

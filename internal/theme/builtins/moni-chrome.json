@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "palette": {
+    "screen": "#050301",
+    "lifted": "#0a0602",
+    "phosphor": "#ff9e2c",
+    "bright": "#ffb156",
+    "soft": "#f08a22",
+    "dim": "#c66a1a",
+    "faint": "#b85d14",
+    "glow": "#3c250b"
+  },
+  "roles": {
+    "normal": {"foreground": "phosphor", "background": "screen"},
+    "muted": {"foreground": "dim"},
+    "heading": {"foreground": "bright", "bold": true},
+    "selected": {"foreground": "bright", "background": "glow", "bold": true},
+    "unread": {"foreground": "bright", "bold": true},
+    "upcoming": {"foreground": "soft", "bold": true},
+    "warning": {"bold": true},
+    "error": {"foreground": "bright", "bold": true},
+    "border": {"foreground": "faint"},
+    "footer": {"background": "lifted"}
+  },
+  "chrome": {"border": "rounded", "padding": 1, "separators": true}
+}

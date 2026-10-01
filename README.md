@@ -20,4 +20,6 @@ Authorize Gmail and Calendar with gog, then run setup. Later launches use `guhd`
 
 ```sh
 guhd --setup
+# Preview the optional amber theme without Google access
+guhd --preview --theme moni-chrome
 ```

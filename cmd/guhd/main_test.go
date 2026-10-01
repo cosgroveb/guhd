@@ -12,6 +12,7 @@ import (
 )
 
 func TestRunFlags(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	t.Chdir(t.TempDir())
 	cfg := config.Defaults()
@@ -165,5 +166,89 @@ func TestRunOutputFailure(t *testing.T) {
 		if !strings.Contains(stderr.String(), "write failed") {
 			t.Fatalf("%s stderr=%q", arg, &stderr)
 		}
+	}
+}
+
+func TestThemeAndPreviewFlags(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("PATH", "")
+	for _, tt := range []struct {
+		args    []string
+		code    int
+		message string
+	}{
+		{[]string{"--preview"}, 1, "interactive terminal"},
+		{[]string{"--preview", "--theme", "moni-chrome"}, 1, "interactive terminal"},
+		{[]string{"--preview", "--theme=plain"}, 1, "interactive terminal"},
+		{[]string{"--preview", "--theme", "-setup"}, 1, "read theme"},
+		{[]string{"--preview", "--theme", "--version"}, 1, "read theme"},
+		{[]string{"--preview", "--theme", "../bad"}, 2, "--theme requires"},
+		{[]string{"--theme="}, 2, "--theme requires"},
+		{[]string{"--theme"}, 2, "flag needs an argument"},
+		{[]string{"--preview", "--config", "missing.json"}, 2, "cannot be combined"},
+		{[]string{"--preview", "--setup"}, 2, "cannot be combined"},
+		{[]string{"--preview", "--setup=false"}, 2, "cannot be combined"},
+		{[]string{"-theme=plain"}, 2, "use --theme instead of -theme"},
+		{[]string{"-theme", "plain"}, 2, "use --theme instead of -theme"},
+		{[]string{"-preview"}, 2, "use --preview instead of -preview"},
+		{[]string{"-preview=true"}, 2, "use --preview instead of -preview"},
+		{[]string{"--help", "--theme", "missing"}, 0, ""},
+		{[]string{"--version", "--theme", "missing"}, 0, ""},
+	} {
+		t.Run(strings.Join(tt.args, " "), func(t *testing.T) {
+			var out, err bytes.Buffer
+			if code := run(tt.args, os.Stdin, &out, &err); code != tt.code || !strings.Contains(err.String(), tt.message) {
+				t.Fatalf("exit %d, stderr %q; want %d, %q", code, &err, tt.code, tt.message)
+			}
+		})
+	}
+}
+
+func TestPreviewIgnoresConfig(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	path, err := config.DefaultPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("broken config"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var out, stderr bytes.Buffer
+	if code := run([]string{"--preview"}, os.Stdin, &out, &stderr); code != 1 || !strings.Contains(stderr.String(), "interactive terminal") {
+		t.Fatalf("exit %d: %s", code, &stderr)
+	}
+}
+
+func TestThemeOverridePreservesConfiguration(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	path := filepath.Join(t.TempDir(), "config.json")
+	cfg := config.Defaults()
+	cfg.Account = "person@example.com"
+	cfg.Theme = "missing"
+	if err := config.Save(path, cfg); err != nil {
+		t.Fatal(err)
+	}
+	for _, tt := range []struct {
+		extra   []string
+		message string
+	}{
+		{nil, "read theme"},
+		{[]string{"--theme", "plain"}, "interactive terminal"},
+	} {
+		var out, stderr bytes.Buffer
+		args := append([]string{"--config", path}, tt.extra...)
+		if code := run(args, os.Stdin, &out, &stderr); code != 1 || !strings.Contains(stderr.String(), tt.message) {
+			t.Fatalf("exit %d: %s", code, &stderr)
+		}
+	}
+	got, err := config.Load(path)
+	if err != nil || got.Theme != "missing" {
+		t.Fatalf("override changed configuration: %+v, %v", got, err)
 	}
 }

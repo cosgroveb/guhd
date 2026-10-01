@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/cosgroveb/guhd/internal/config"
 	"github.com/cosgroveb/guhd/internal/source"
+	"github.com/cosgroveb/guhd/internal/theme"
 )
 
 type dataSource interface {
@@ -75,15 +76,20 @@ type model struct {
 	request                uint64
 	help                   bool
 	status                 string
+	styles                 theme.Styles
+	preview                bool
 }
 
 // New creates a dashboard whose fetches share the application's lifetime.
-func New(ctx context.Context, cfg config.Config, path string, setup bool) tea.Model {
+func New(ctx context.Context, cfg config.Config, path string, setup bool, styles ...theme.Styles) tea.Model {
 	ctx, cancel := context.WithCancel(ctx)
 	m := &model{ctx: ctx, cancel: cancel, cfg: cfg, path: path, client: source.Gog{}, now: time.Now()}
+	if len(styles) > 0 {
+		m.styles = styles[0]
+	}
 	m.focusInitialSection()
 	if setup {
-		s := newSetup(ctx, cfg, path, m.client)
+		s := newSetup(ctx, cfg, path, m.client, m.styles)
 		m.setup = &s
 	}
 	return m
@@ -95,6 +101,9 @@ func (m *model) focusInitialSection() {
 	}
 }
 func (m *model) Init() tea.Cmd {
+	if m.preview {
+		return nil
+	}
 	if m.setup != nil {
 		return m.setup.Init()
 	}
@@ -105,6 +114,9 @@ func (m *model) account() source.Account {
 	return source.Account{Email: m.cfg.Account, Client: m.cfg.Client}
 }
 func (m *model) refresh(force bool) tea.Cmd {
+	if m.preview {
+		return nil
+	}
 	var cmds []tea.Cmd
 	for i := range m.states {
 		if i == 2 && len(m.cfg.Projects) == 0 || i == 3 && m.cfg.MailQuery != "in:inbox" {
@@ -152,13 +164,29 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if size, ok := msg.(tea.WindowSizeMsg); ok {
 		m.width, m.height = size.Width, size.Height
 		m.resizeDetail()
+		width, height := m.contentSize()
+		msg = tea.WindowSizeMsg{Width: width, Height: height}
+	}
+	if m.preview {
+		if k, ok := msg.(tea.KeyPressMsg); ok && k.String() == "s" && m.setup == nil && m.detail == nil && !m.help {
+			m.previewSetup()
+			return m, nil
+		}
 	}
 	if m.setup != nil {
 		switch v := msg.(type) {
 		case setupCanceledMsg:
+			if m.preview {
+				m.setup = nil
+				return m, nil
+			}
 			m.cancel()
 			return m, tea.Quit
 		case setupSavedMsg:
+			if m.preview {
+				m.setup = nil
+				return m, nil
+			}
 			m.cfg = v.cfg
 			m.focusInitialSection()
 			m.setup = nil
@@ -171,6 +199,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	switch v := msg.(type) {
 	case clockMsg:
+		if m.preview {
+			return m, nil
+		}
 		m.now = time.Time(v)
 		m.expireEvents()
 		return m, tea.Batch(m.refresh(false), tick())
@@ -256,6 +287,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "enter":
 				return m, m.openDetail()
 			case "n":
+				if m.preview {
+					return m, nil
+				}
 				if m.section == 1 && m.nextPage != "" && !m.states[1].loading {
 					m.states[1].loading = true
 					ctx, client, a, q, p := m.ctx, m.client, m.account(), m.cfg.MailQuery, m.nextPage

@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/cosgroveb/guhd/internal/config"
 	"github.com/cosgroveb/guhd/internal/source"
+	"github.com/cosgroveb/guhd/internal/theme"
 )
 
 type setupSavedMsg struct{ cfg config.Config }
@@ -49,27 +50,38 @@ type setupModel struct {
 	err       error
 	query     textinput.Model
 	projects  textinput.Model
+	styles    theme.Styles
+	preview   bool
 }
 
-func newSetup(ctx context.Context, cfg config.Config, path string, client dataSource) setupModel {
+func newSetup(ctx context.Context, cfg config.Config, path string, client dataSource, styles ...theme.Styles) setupModel {
+	var style theme.Styles
+	if len(styles) > 0 {
+		style = styles[0]
+	}
+	inputStyle := textinput.StyleState{Text: style.Normal, Placeholder: style.Muted, Suggestion: style.Muted, Prompt: style.Heading}
+	inputStyles := textinput.Styles{Focused: inputStyle, Blurred: inputStyle}
 	query := textinput.New()
 	query.Prompt = "> "
-	query.SetStyles(textinput.Styles{})
+	query.SetStyles(inputStyles)
 	query.CharLimit = 4096
 	query.SetValue(plainText(cfg.MailQuery))
 	projects := textinput.New()
 	projects.Prompt = "> "
-	projects.SetStyles(textinput.Styles{})
+	projects.SetStyles(inputStyles)
 	projects.CharLimit = 16384
 	projects.SetValue(plainText(strings.Join(cfg.Projects, "; ")))
 	selected := make(map[string]bool)
 	for _, id := range cfg.Calendars {
 		selected[id] = true
 	}
-	return setupModel{cfg: cfg, path: path, client: client, ctx: ctx, selected: selected, query: query, projects: projects, loading: true}
+	return setupModel{cfg: cfg, path: path, client: client, ctx: ctx, selected: selected, query: query, projects: projects, loading: true, styles: style}
 }
 
 func (m setupModel) Init() tea.Cmd {
+	if m.preview {
+		return nil
+	}
 	return func() tea.Msg {
 		accounts, err := m.client.Accounts(m.ctx)
 		return setupAccountsMsg{accounts: accounts, err: err}
@@ -77,6 +89,10 @@ func (m setupModel) Init() tea.Cmd {
 }
 
 func (m *setupModel) discoverCalendars() tea.Cmd {
+	if m.preview {
+		m.loading = false
+		return nil
+	}
 	m.request++
 	request := m.request
 	account := source.Account{Email: m.cfg.Account, Client: m.cfg.Client}
@@ -173,6 +189,9 @@ func (m setupModel) updateSelection(key string) (setupModel, tea.Cmd) {
 		return m, nil
 	}
 	if key == "r" {
+		if m.preview {
+			return m, nil
+		}
 		m.err, m.cursor = nil, 0
 		if m.step == setupAccount {
 			m.loading = true
@@ -249,6 +268,9 @@ func (m setupModel) save() (setupModel, tea.Cmd) {
 			cfg.Projects = append(cfg.Projects, absolute)
 		}
 	}
+	if m.preview {
+		return m, func() tea.Msg { return setupSavedMsg{cfg: cfg} }
+	}
 	if err := config.Save(m.path, cfg); err != nil {
 		m.err = err
 		return m, nil
@@ -260,7 +282,11 @@ func (m setupModel) View(width, height int) string {
 	if width < 24 || height < 8 {
 		return "Enlarge pane for setup. Esc cancels."
 	}
-	lines := []string{"guhd setup", ""}
+	title := "guhd setup"
+	if m.preview {
+		title = "guhd setup preview (no saves)"
+	}
+	lines := []string{title, ""}
 	inputRow := -1
 	switch m.step {
 	case setupAccount, setupCalendar:
@@ -320,6 +346,20 @@ func (m setupModel) View(width, height int) string {
 	for i, line := range lines {
 		if i != inputRow {
 			line = strings.NewReplacer("\n", " ", "\t", " ").Replace(plainText(line))
+		}
+		if i != inputRow {
+			style := m.styles.Normal
+			switch {
+			case i == 0:
+				style = m.styles.Heading
+			case strings.HasPrefix(line, "> "):
+				style = m.styles.Selected
+			case strings.HasPrefix(line, "Error:"):
+				style = m.styles.Error
+			case strings.HasPrefix(line, "Enter ") || strings.HasPrefix(line, "↑/↓"):
+				style = m.styles.Footer
+			}
+			line = styledLine(style, line, width)
 		}
 		lines[i] = ansi.Truncate(line, width, "…")
 	}

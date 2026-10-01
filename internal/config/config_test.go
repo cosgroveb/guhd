@@ -143,3 +143,25 @@ func TestDefaultPath(t *testing.T) {
 		t.Fatalf("path %q, want %q", got, want)
 	}
 }
+
+func TestThemeConfig(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	for _, name := range []string{"plain", "moni-chrome", "custom", ""} {
+		cfg := validConfig()
+		cfg.Theme = name
+		if err := Save(path, cfg); err != nil {
+			t.Fatal(err)
+		}
+		got, err := Load(path)
+		if err != nil || got.Theme != name {
+			t.Fatalf("theme round trip %q: %+v, %v", name, got, err)
+		}
+	}
+	if err := os.WriteFile(path, []byte(`{"account":"person@example.com"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Load(path)
+	if err != nil || got.Theme != "plain" {
+		t.Fatalf("legacy theme: %+v, %v", got, err)
+	}
+}

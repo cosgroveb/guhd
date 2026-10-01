@@ -80,6 +80,12 @@ func (m *model) openDetail() tea.Cmd {
 	m.status = ""
 	m.resizeDetail()
 	if m.section == 1 {
+		if m.preview {
+			d.loading = false
+			d.text = "From: Morgan <morgan@example.test>\nTo: alex@example.test\n\nHere is the agenda for our afternoon review.\n\nThis fictional message previews the theme without contacting Google.\n\n" + strings.Repeat("Notes for discussion and follow-up.\n", 12)
+			m.resizeDetail()
+			return nil
+		}
 		ctx, c, a, id, req := m.ctx, m.client, m.account(), d.id, d.request
 		return func() tea.Msg { detail, err := c.Detail(ctx, a, id); return detailMsg{req, id, detail, err} }
 	}
@@ -87,8 +93,9 @@ func (m *model) openDetail() tea.Cmd {
 }
 func (m *model) resizeDetail() {
 	if d := m.detail; d != nil {
-		d.viewport.SetWidth(max(1, m.width))
-		d.viewport.SetHeight(max(1, m.height-5))
+		width, height := m.contentSize()
+		d.viewport.SetWidth(max(1, width))
+		d.viewport.SetHeight(max(1, height-5))
 		text := plainText(d.text)
 		if len(text) > 128*1024 {
 			text = text[:128*1024] + "\n[Preview truncated]"
@@ -97,7 +104,7 @@ func (m *model) resizeDetail() {
 			text = "Link/path: " + plainText(d.target) + "\n\n" + text
 		}
 		text = plainText(d.title) + "\n\n" + text
-		d.viewport.SetContent(ansi.Hardwrap(text, max(1, m.width), true))
+		d.viewport.SetContent(m.styles.Normal.Render(ansi.Hardwrap(text, max(1, width), true)))
 	}
 }
 func (m *model) target() (string, bool) {
@@ -118,6 +125,10 @@ func (m *model) target() (string, bool) {
 	}
 }
 func (m *model) action(key string) tea.Cmd {
+	if m.preview {
+		m.status = "Preview: external actions disabled"
+		return nil
+	}
 	target, local := m.target()
 	if target == "" {
 		m.status = "No link available"

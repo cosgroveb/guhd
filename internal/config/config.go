@@ -14,6 +14,7 @@ import (
 )
 
 type Config struct {
+	Theme          string   `json:"theme"`
 	Account        string   `json:"account"`
 	Client         string   `json:"client"`
 	Calendars      []string `json:"calendars"`
@@ -22,7 +23,9 @@ type Config struct {
 	RefreshSeconds int      `json:"refresh_seconds"`
 }
 
-func Defaults() Config { return Config{Client: "default", MailQuery: "in:inbox", RefreshSeconds: 300} }
+func Defaults() Config {
+	return Config{Theme: "plain", Client: "default", MailQuery: "in:inbox", RefreshSeconds: 300}
+}
 
 func DefaultPath() (string, error) {
 	dir, err := os.UserConfigDir()
